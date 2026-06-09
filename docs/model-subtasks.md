@@ -11,6 +11,7 @@
 | Video behavior | Rules from context/audio/pose | VideoMAE or SlowFast fine-tuning | MVP rules implemented |
 | Canine reasoning | Pawgaze | Evaluation taxonomy and prompts | Planned evaluation dataset |
 | Personal dog learning | Feedback counts + simple patterns | Per-dog classifier after 30-50 clips | Habit feedback implemented |
+| Breed intelligence | Breed profile priors + optional `djhua0103/dog-breed-resnet50` | Fine-tuned breed classifier on clear owner photos, phone videos, and mixed-breed labels | Breed APIs, mobile UI, and behavior-score adjustments implemented |
 
 ## Validation Rule
 
@@ -20,3 +21,4 @@ Choose the "best" model by app-specific validation, not by popularity:
 - Bark/no-bark: F1 over quiet/noisy clips.
 - Behavior labels: agreement with owner correction.
 - Personal learning: improvement after feedback compared with baseline result.
+- Breed layer: top-3 breed prediction quality on clear photos, mixed-breed honesty, and whether breed priors improve owner-corrected behavior labels.

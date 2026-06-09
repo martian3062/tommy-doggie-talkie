@@ -14,6 +14,7 @@ The app intentionally presents behavior interpretations, not literal translation
 - Supabase-ready auth, database, and storage configuration.
 - Direct video upload fallback when Supabase credentials are missing.
 - Baseline ML fusion layer with optional YOLO adapter and declared Hugging Face model registry.
+- Breed intelligence with breed profiles, optional breed detection, breed-aware behavior scoring, and health-watch cautions.
 - Feedback loop and per-dog habit summaries.
 - Backend tests for dog creation, upload, result retrieval, feedback, and habits.
 
@@ -74,3 +75,4 @@ Priority order:
 3. Add DeepLabCut quadruped pose after license review.
 4. Add VideoMAE/SlowFast only after enough labeled clips exist.
 5. Train lightweight per-dog classifiers after 30-50 corrected clips per dog.
+6. Fine-tune breed classification on clear owner photos and phone frames, especially for local and mixed breeds.

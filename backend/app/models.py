@@ -26,6 +26,10 @@ class Dog(SQLModel, table=True):
     owner_id: str = Field(index=True)
     name: str
     breed: str | None = None
+    breed_source: str = "unknown"
+    breed_confidence: float | None = None
+    breed_predictions: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    breed_behavior_profile: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     age_years: float | None = None
     sex: str | None = None
     routines: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))

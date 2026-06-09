@@ -3,6 +3,8 @@ from typing import Any
 
 import numpy as np
 
+from app.services.breed_intelligence import breed_adjustments_for, get_breed_profile
+
 
 MODEL_REGISTRY: dict[str, dict[str, str]] = {
     "dog_detection": {
@@ -34,6 +36,11 @@ MODEL_REGISTRY: dict[str, dict[str, str]] = {
         "baseline": "Rules from pose/audio/context features",
         "advanced": "VideoMAE or PyTorchVideo SlowFast fine-tuning",
         "status": "rules implemented for MVP",
+    },
+    "breed_detection": {
+        "baseline": "djhua0103/dog-breed-resnet50 / Stanford Dogs style classifiers",
+        "advanced": "Fine-tuned breed classifier on local phone-video frames and mixed-breed labels",
+        "status": "implemented as optional image-classification adapter with fallback",
     },
 }
 
@@ -112,10 +119,18 @@ def _context_label_boost(context_tags: list[str]) -> dict[str, float]:
     return boosts
 
 
-def analyze_media(media_path: str | None, context_tags: list[str]) -> dict[str, Any]:
+def analyze_media(
+    media_path: str | None,
+    context_tags: list[str],
+    dog_profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     detection = _try_yolo_detection(media_path)
     audio = _heuristic_audio_signals(media_path)
     boosts = _context_label_boost(context_tags)
+    dog_profile = dog_profile or {}
+    breed = dog_profile.get("breed")
+    breed_profile = get_breed_profile(breed)
+    breed_biases, breed_notes, health_watch = breed_adjustments_for(breed)
 
     dog_seen = detection.get("dog_frames", 0) > 0
     detection_conf = float(detection.get("avg_confidence", 0.0))
@@ -131,12 +146,18 @@ def analyze_media(media_path: str | None, context_tags: list[str]) -> dict[str, 
         "pain/discomfort possible": 0.08 + boosts["pain/discomfort possible"],
         "unknown": 0.15 if dog_seen else 0.55,
     }
+    for label, boost in breed_biases.items():
+        if label in scores:
+            scores[label] += boost
+    if health_watch and any(tag.lower() in {"limp", "pain", "panting", "heat", "injury"} for tag in context_tags):
+        scores["pain/discomfort possible"] += 0.12
+
     ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
     top_predictions = [
         {
             "label": label,
             "confidence": round(min(score, 0.92), 2),
-            "evidence": _evidence_for(label, detection, audio, context_tags),
+            "evidence": _evidence_for(label, detection, audio, context_tags, breed_profile),
         }
         for label, score in ordered
     ]
@@ -157,12 +178,16 @@ def analyze_media(media_path: str | None, context_tags: list[str]) -> dict[str, 
             {"time_sec": 0, "event": "media_received", "detail": media_path or "storage-only job"},
             {"time_sec": 1, "event": "dog_detection", "detail": detection},
             {"time_sec": 2, "event": "audio_signal", "detail": audio},
+            {"time_sec": 3, "event": "breed_adjustment", "detail": breed_profile},
         ],
         "raw_signals": {
             "model_registry": MODEL_REGISTRY,
             "dog_detection": detection,
             "audio": audio,
             "context_tags": context_tags,
+            "breed_profile": breed_profile,
+            "breed_notes": breed_notes,
+            "health_watch": health_watch,
         },
     }
 
@@ -172,6 +197,7 @@ def _evidence_for(
     detection: dict[str, Any],
     audio: dict[str, Any],
     context_tags: list[str],
+    breed_profile: dict[str, Any],
 ) -> list[str]:
     evidence = []
     if detection.get("dog_frames", 0) > 0:
@@ -180,6 +206,8 @@ def _evidence_for(
         evidence.append("audio activity suggests possible vocalization")
     if context_tags:
         evidence.append(f"context tags: {', '.join(context_tags)}")
+    if breed_profile.get("slug") != "unknown":
+        evidence.append(f"breed profile: {breed_profile.get('display_name')}")
     if label == "unknown":
         evidence.append("not enough validated model evidence for a stronger label")
     return evidence or ["baseline rules only; user feedback needed"]

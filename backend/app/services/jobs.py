@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlmodel import Session, select
 
-from app.models import AnalysisJob, AnalysisResult, Feedback, HabitSummary, JobStatus
+from app.models import AnalysisJob, AnalysisResult, Dog, Feedback, HabitSummary, JobStatus
 from app.services.ml_pipeline import analyze_media
 from app.services.storage import StorageService
 
@@ -30,7 +30,9 @@ def process_analysis_job(session: Session, job_id: str) -> None:
             session.add(job)
             session.commit()
 
-        result_payload = analyze_media(media_path, job.context_tags)
+        dog = session.get(Dog, job.dog_id)
+        dog_profile = dog.model_dump() if dog else {}
+        result_payload = analyze_media(media_path, job.context_tags, dog_profile=dog_profile)
         result = AnalysisResult(
             job_id=job.id,
             dog_id=job.dog_id,

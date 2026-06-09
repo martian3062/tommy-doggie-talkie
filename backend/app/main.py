@@ -44,4 +44,5 @@ def health() -> dict[str, str | bool]:
 
 
 app.include_router(dogs.router, prefix="/api/v1")
+app.include_router(dogs.breed_router, prefix="/api/v1")
 app.include_router(analysis_jobs.router, prefix="/api/v1")

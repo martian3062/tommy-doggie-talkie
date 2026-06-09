@@ -1,6 +1,10 @@
 export type DogPayload = {
   name: string;
   breed?: string;
+  breed_source?: string;
+  breed_confidence?: number;
+  breed_predictions?: BreedPrediction[];
+  breed_behavior_profile?: BreedProfile;
   age_years?: number;
   sex?: string;
   routines?: Record<string, unknown>;
@@ -47,4 +51,29 @@ export type HabitSummary = {
   label_counts: Record<string, number>;
   recent_notes: string[];
   updated_at: string;
+};
+
+export type BreedPrediction = {
+  breed: string;
+  confidence: number;
+  source: string;
+};
+
+export type BreedProfile = {
+  slug: string;
+  display_name: string;
+  group: string;
+  energy_level: string;
+  behavior_biases: Record<string, number>;
+  common_patterns: string[];
+  health_watch: string[];
+  interpretation_notes: string[];
+};
+
+export type BreedDetection = {
+  dog_id: string;
+  breed_predictions: BreedPrediction[];
+  selected_breed?: string | null;
+  breed_source: string;
+  behavior_profile?: BreedProfile | null;
 };

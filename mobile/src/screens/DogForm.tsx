@@ -25,6 +25,7 @@ export function DogForm({ onCreate }: Props) {
       await onCreate({
         name: name.trim(),
         breed: breed.trim() || undefined,
+        breed_source: breed.trim() ? 'user_selected' : 'unknown',
         routines: routine.trim() ? { notes: routine.trim() } : {},
       });
       setName('');

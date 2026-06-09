@@ -6,12 +6,21 @@ create table if not exists public.dogs (
   owner_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
   breed text,
+  breed_source text not null default 'unknown',
+  breed_confidence numeric,
+  breed_predictions jsonb not null default '[]'::jsonb,
+  breed_behavior_profile jsonb not null default '{}'::jsonb,
   age_years numeric,
   sex text,
   routines jsonb not null default '{}'::jsonb,
   known_habits jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table public.dogs add column if not exists breed_source text not null default 'unknown';
+alter table public.dogs add column if not exists breed_confidence numeric;
+alter table public.dogs add column if not exists breed_predictions jsonb not null default '[]'::jsonb;
+alter table public.dogs add column if not exists breed_behavior_profile jsonb not null default '{}'::jsonb;
 
 create table if not exists public.analysis_jobs (
   id uuid primary key default gen_random_uuid(),

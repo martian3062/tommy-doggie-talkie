@@ -1,4 +1,12 @@
-import { AnalysisJob, AnalysisResult, Dog, DogPayload, HabitSummary } from '../types';
+import {
+  AnalysisJob,
+  AnalysisResult,
+  BreedDetection,
+  BreedProfile,
+  Dog,
+  DogPayload,
+  HabitSummary,
+} from '../types';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -24,6 +32,13 @@ export class ApiClient {
   async createDog(payload: DogPayload): Promise<Dog> {
     return this.request('/api/v1/dogs', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateDog(dogId: string, payload: DogPayload): Promise<Dog> {
+    return this.request(`/api/v1/dogs/${dogId}`, {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
   }
@@ -65,6 +80,20 @@ export class ApiClient {
 
   async getHabits(dogId: string): Promise<HabitSummary> {
     return this.request(`/api/v1/dogs/${dogId}/habits`);
+  }
+
+  async listBreeds(): Promise<BreedProfile[]> {
+    return this.request('/api/v1/breeds');
+  }
+
+  async detectBreed(dogId: string, file: { uri: string; name: string; type: string }): Promise<BreedDetection> {
+    const form = new FormData();
+    form.append('file', file as unknown as Blob);
+    return this.request(`/api/v1/dogs/${dogId}/breed-detect`, {
+      method: 'POST',
+      body: form,
+      skipJsonHeader: true,
+    });
   }
 
   private async request<T>(

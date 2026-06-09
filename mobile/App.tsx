@@ -14,6 +14,7 @@ import { Session } from '@supabase/supabase-js';
 import { ApiClient } from './src/api/client';
 import { supabase, supabaseConfigured } from './src/api/supabase';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { BreedPanel } from './src/screens/BreedPanel';
 import { DogForm } from './src/screens/DogForm';
 import { DogList } from './src/screens/DogList';
 import { HabitsPanel } from './src/screens/HabitsPanel';
@@ -137,6 +138,14 @@ export default function App() {
 
         {selectedDog ? (
           <>
+            <BreedPanel
+              api={api}
+              dog={selectedDog}
+              onDogUpdated={(dog) => {
+                setSelectedDog(dog);
+                setDogs((items) => items.map((item) => (item.id === dog.id ? dog : item)));
+              }}
+            />
             <UploadPanel
               api={api}
               dog={selectedDog}

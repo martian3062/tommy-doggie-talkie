@@ -9,6 +9,10 @@ from app.models import JobStatus
 class DogCreate(BaseModel):
     name: str = Field(min_length=1)
     breed: str | None = None
+    breed_source: str = "unknown"
+    breed_confidence: float | None = Field(default=None, ge=0, le=1)
+    breed_predictions: list[dict[str, Any]] = Field(default_factory=list)
+    breed_behavior_profile: dict[str, Any] = Field(default_factory=dict)
     age_years: float | None = Field(default=None, ge=0)
     sex: str | None = None
     routines: dict[str, Any] = Field(default_factory=dict)
@@ -75,3 +79,28 @@ class RetrainResponse(BaseModel):
     dog_id: str
     queued: bool
     message: str
+
+
+class BreedPrediction(BaseModel):
+    breed: str
+    confidence: float = Field(ge=0, le=1)
+    source: str
+
+
+class BreedProfileRead(BaseModel):
+    slug: str
+    display_name: str
+    group: str
+    energy_level: str
+    behavior_biases: dict[str, float]
+    common_patterns: list[str]
+    health_watch: list[str]
+    interpretation_notes: list[str]
+
+
+class BreedDetectionRead(BaseModel):
+    dog_id: str
+    breed_predictions: list[BreedPrediction]
+    selected_breed: str | None = None
+    breed_source: str
+    behavior_profile: BreedProfileRead | None = None
