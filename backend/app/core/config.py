@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./dog_translator.db"
     local_media_dir: Path = Path("./media")
     run_jobs_inline: bool = True
+    breed_model_dir: Path = Path("./models/breed")
 
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None

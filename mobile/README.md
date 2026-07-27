@@ -24,7 +24,7 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET=dog-videos
 ```
 
-Without Supabase values, the app runs in local demo mode and uploads videos directly to FastAPI.
+Without Supabase values, the app runs in local demo mode and uploads videos directly to Litestar.
 
 ## APK
 

@@ -1,5 +1,9 @@
+import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+LOCAL_BREED_MODEL_SOURCE = "tommy-breed-resnet50-kaggle"
 
 
 def _slug(value: str) -> str:
@@ -174,12 +178,84 @@ def heuristic_breed_predictions(
     ]
 
 
+@lru_cache(maxsize=2)
+def _cached_torchscript_model(model_path: str, labels_path: str) -> tuple[Any, list[str]] | None:
+    try:
+        import torch
+
+        labels = [str(label) for label in json.loads(Path(labels_path).read_text(encoding="utf-8"))]
+        model = torch.jit.load(model_path, map_location="cpu")
+        model.eval()
+        return model, labels
+    except Exception:
+        return None
+
+
+def _local_breed_model() -> tuple[Any, list[str]] | None:
+    from app.core.config import get_settings
+
+    model_dir = get_settings().breed_model_dir
+    model_path = model_dir / "breed_model.torchscript.pt"
+    labels_path = model_dir / "labels.json"
+    if not model_path.exists() or not labels_path.exists():
+        return None
+    return _cached_torchscript_model(str(model_path), str(labels_path))
+
+
+def _image_tensor(media_path: str, image_size: int = 224) -> Any:
+    import numpy as np
+    import torch
+    from PIL import Image
+
+    image = Image.open(media_path).convert("RGB")
+    scale = (image_size * 256 / 224) / min(image.size)
+    image = image.resize(
+        (max(1, round(image.width * scale)), max(1, round(image.height * scale))),
+        Image.BILINEAR,
+    )
+    left = (image.width - image_size) // 2
+    top = (image.height - image_size) // 2
+    image = image.crop((left, top, left + image_size, top + image_size))
+    array = np.asarray(image, dtype="float32") / 255.0
+    mean = np.array([0.485, 0.456, 0.406], dtype="float32")
+    std = np.array([0.229, 0.224, 0.225], dtype="float32")
+    array = (array - mean) / std
+    return torch.from_numpy(array.transpose(2, 0, 1)).unsqueeze(0)
+
+
+def _local_breed_predictions(media_path: str) -> list[dict[str, Any]] | None:
+    loaded = _local_breed_model()
+    if not loaded:
+        return None
+    model, labels = loaded
+    try:
+        import torch
+
+        with torch.inference_mode():
+            logits = model(_image_tensor(media_path))
+            probabilities = torch.softmax(logits[0], dim=0)
+            top = torch.topk(probabilities, k=min(3, len(labels)))
+        return [
+            {
+                "breed": labels[index],
+                "confidence": round(float(score), 3),
+                "source": LOCAL_BREED_MODEL_SOURCE,
+            }
+            for score, index in zip(top.values.tolist(), top.indices.tolist())
+        ]
+    except Exception:
+        return None
+
+
 def detect_breed_from_media(
     media_path: str | None,
     original_filename: str | None = None,
 ) -> list[dict[str, Any]]:
     if not media_path or not Path(media_path).exists():
         return heuristic_breed_predictions(original_filename or media_path)
+    local_predictions = _local_breed_predictions(media_path)
+    if local_predictions:
+        return local_predictions
     try:
         from transformers import pipeline
 

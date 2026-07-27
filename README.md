@@ -1,6 +1,6 @@
 # Tommy Doggie Talkie
 
-Tommy Doggie Talkie is an Android-first dog behavior interpretation app built with Expo React Native and FastAPI. A user creates a dog profile, optionally identifies its breed, uploads or records a video, and receives confidence-ranked behavior interpretations supported by detection, context, breed priors, and the dog's feedback history.
+Tommy Doggie Talkie is an Android-first dog behavior interpretation app built with Expo React Native and Litestar. A user creates a dog profile, optionally identifies its breed, uploads or records a video, and receives confidence-ranked behavior interpretations supported by detection, context, breed priors, and the dog's feedback history.
 
 The product reports probable behavior such as `playful`, `hungry`, `attention seeking`, `anxious`, `alert/guarding`, `resting`, `pain/discomfort possible`, or `unknown`. It is not a literal dog-language translator and must not be used as a veterinary diagnosis.
 
@@ -15,8 +15,8 @@ Implemented:
 - Breed behavior profiles and breed-aware interpretation adjustments.
 - Video recording and media-library upload.
 - Private Supabase Storage upload using short-lived signed URLs.
-- Direct FastAPI upload when Supabase is not configured.
-- FastAPI analysis-job, result, feedback, habit, dog, and breed APIs.
+- Direct Litestar upload when Supabase is not configured.
+- Litestar analysis-job, result, feedback, habit, dog, and breed APIs.
 - Supabase Postgres as the configured production database.
 - SQLite as the backend development/test fallback.
 - Optional Ultralytics YOLO dog detection.
@@ -29,7 +29,7 @@ Partially implemented or planned:
 - Bark, animal-sound, dog-emotion, pose, tracking, and video-action models are registered as model subtasks but are not active production inference stages yet.
 - Audio currently produces a placeholder signal from media metadata; it is not real bark classification.
 - Personal learning currently stores feedback counts and notes. A trained per-dog classifier is planned after 30-50 corrected clips.
-- Jobs run inside the FastAPI request when `RUN_JOBS_INLINE=true`. Redis/Celery or RQ workers are planned for production.
+- Jobs run inside the Litestar request when `RUN_JOBS_INLINE=true`. Redis/Celery or RQ workers are planned for production.
 - The mobile app includes `expo-sqlite`, but offline mobile synchronization is not implemented. SQLite currently refers to the backend database fallback.
 - The backend currently trusts `X-User-Id`; Supabase JWT signature verification must be added before production release.
 
@@ -42,7 +42,7 @@ flowchart LR
     Mobile -->|Sign up / sign in| Auth[Supabase Auth]
     Mobile -->|Private media upload| Storage[Supabase Storage]
     Storage -->|1-hour signed URL| Mobile
-    Mobile -->|REST + user id + signed URL| API[FastAPI API]
+    Mobile -->|REST + user id + signed URL| API[Litestar API]
 
     API --> DBLayer[SQLModel data layer]
     DBLayer -->|Production| Postgres[Supabase Postgres]
@@ -72,7 +72,7 @@ flowchart LR
 | Expo React Native | Authentication UI, dog profiles, breed detection UI, video capture/upload, results, feedback, and habit display |
 | Supabase Auth | Mobile user registration, login, session persistence, and user identity |
 | Supabase Storage | Private storage for dog videos under `user_id/dog_id/file_name` |
-| FastAPI | API validation, ownership checks, upload handling, analysis orchestration, result access, and feedback handling |
+| Litestar | API validation, ownership checks, upload handling, analysis orchestration, result access, and feedback handling |
 | SQLModel | Shared persistence layer for Supabase Postgres or SQLite |
 | ML pipeline | Dog detection, context extraction, breed adjustments, score fusion, evidence, and uncertainty |
 | Breed intelligence | Breed normalization, top predictions, behavior priors, interpretation notes, and health-watch cautions |
@@ -88,7 +88,7 @@ sequenceDiagram
     participant U as User
     participant M as Mobile app
     participant S as Supabase Auth
-    participant A as FastAPI
+    participant A as Litestar
 
     U->>M: Enter email and password
     M->>S: signInWithPassword or signUp
@@ -98,14 +98,14 @@ sequenceDiagram
     A-->>M: User-owned records only
 ```
 
-Development mode uses `local-demo-user` when no user header is supplied. This is convenient for local testing but is not production authentication. Production must send the Supabase access token to FastAPI and verify it before accepting the user UUID.
+Development mode uses `local-demo-user` when no user header is supplied. This is convenient for local testing but is not production authentication. Production must send the Supabase access token to Litestar and verify it before accepting the user UUID.
 
 ### 2. Dog and Breed Profile
 
 1. The user creates a dog with name, optional breed, routines, and known habits.
 2. A manually entered breed is stored with `breed_source=user_selected`.
 3. The user can upload a clear dog photo through the Breed Intelligence panel.
-4. FastAPI stores a temporary local copy and calls the optional Hugging Face breed classifier.
+4. Litestar stores a temporary local copy and calls the optional Hugging Face breed classifier.
 5. If the classifier is unavailable, a low-confidence fallback is returned instead of failing the app.
 6. The top three predictions, confidence, source, and breed behavior profile are saved on the dog.
 7. Future analyses use the saved breed behavior biases as supporting context, not as proof of intent.
@@ -129,7 +129,7 @@ GET /api/v1/breeds/{breed_slug}/behavior-profile
 sequenceDiagram
     participant M as Mobile app
     participant S as Supabase Storage
-    participant A as FastAPI
+    participant A as Litestar
     participant P as Analysis pipeline
     participant D as Database
 
@@ -243,7 +243,7 @@ Supabase row-level security restricts each table to `auth.uid() = owner_id`. The
 |---|---|---|
 | Dog detection | Ultralytics YOLO `yolo11n.pt` | Optional adapter implemented |
 | Dog tracking | YOLO plus ByteTrack/DeepSORT | Planned |
-| Breed detection | `djhua0103/dog-breed-resnet50` | Optional adapter with fallback |
+| Breed detection | Kaggle-trained ResNet50, `djhua0103/dog-breed-resnet50` fallback | Kaggle GPU training pipeline + local TorchScript adapter |
 | Breed intelligence | Curated breed profiles and score biases | Implemented |
 | Pose/keypoints | DeepLabCut SuperAnimal Quadruped | Planned; license review required |
 | Bark detection | `rmarcosg/bark-detection-model` | Planned |
@@ -260,6 +260,20 @@ python -m pip install ".[ml]"
 ```
 
 Model selection must be based on held-out phone videos from the intended breeds and environments, not model popularity. Track detection precision/recall, bark F1, breed top-1/top-3 accuracy, behavior agreement with owner corrections, inference time, and failure rates.
+
+## Training on Kaggle GPU
+
+Model training runs on Kaggle's free GPU kernels instead of the local machine. Each trainable subtask is a self-contained Kaggle script kernel under `training/kaggle/<subtask>/`; the first is the breed classifier (ResNet50 fine-tuned on Stanford Dogs, 120 breeds).
+
+One-time setup: save a Kaggle API token to `~/.kaggle` and install the CLI (`python -m pip install kaggle kagglehub`). See `training/README.md` for details.
+
+```powershell
+.\training\kaggle_train.ps1 push     # upload the kernel and start a GPU run
+.\training\kaggle_train.ps1 watch    # poll status until the run finishes
+.\training\kaggle_train.ps1 output   # download weights into backend\models\breed
+```
+
+The run exports `breed_model.torchscript.pt`, `labels.json`, and `metrics.json`. Once downloaded, the backend automatically prefers the local Kaggle-trained model for `POST /api/v1/dogs/{dog_id}/breed-detect`, falling back to the Hugging Face adapter and then to heuristics. The weights directory is configurable with `BREED_MODEL_DIR` (default `backend/models/breed`, gitignored).
 
 ## API Reference
 
@@ -291,10 +305,10 @@ http://localhost:8000/docs
 tommy-doggie-talkie/
 |-- backend/
 |   |-- app/
-|   |   |-- api/                 FastAPI dependencies and routes
+|   |   |-- api/                 Litestar dependencies and routes
 |   |   |-- core/                Configuration and database engine
 |   |   |-- services/            Storage, jobs, breed, and ML pipeline
-|   |   |-- main.py              FastAPI application
+|   |   |-- main.py              Litestar application
 |   |   |-- models.py            SQLModel persistence models
 |   |   `-- schemas.py           Request/response schemas
 |   |-- tests/                   Backend integration tests
@@ -302,7 +316,7 @@ tommy-doggie-talkie/
 |   `-- pyproject.toml
 |-- mobile/
 |   |-- src/
-|   |   |-- api/                 FastAPI and Supabase clients
+|   |   |-- api/                 Litestar and Supabase clients
 |   |   |-- components/          Shared UI components
 |   |   |-- screens/             Auth, dog, breed, upload, result, habits
 |   |   `-- types.ts
@@ -315,6 +329,11 @@ tommy-doggie-talkie/
 |   |-- migrations/              Production schema migrations
 |   |-- config.toml              Local Supabase configuration
 |   `-- schema.sql               Re-runnable complete schema
+|-- training/
+|   |-- kaggle/
+|   |   `-- breed_classifier/    Kaggle GPU kernel: train.py + kernel-metadata.json
+|   |-- kaggle_train.ps1         Push, watch, and download Kaggle training runs
+|   `-- README.md                Kaggle GPU training workflow
 |-- docs/
 |   `-- model-subtasks.md
 `-- README.md
@@ -347,7 +366,7 @@ Create `mobile/.env` from `mobile/.env.example`.
 
 | Variable | Purpose |
 |---|---|
-| `EXPO_PUBLIC_API_BASE_URL` | FastAPI URL reachable from Android |
+| `EXPO_PUBLIC_API_BASE_URL` | Litestar URL reachable from Android |
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase client publishable key |
 | `EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET` | Private video bucket name |
@@ -415,7 +434,7 @@ The repository currently targets Supabase project reference `qvokxgvqhegbpgrbczn
 
 ## Android Builds
 
-Remain on React Native for the current product. FastAPI performs the heavy inference, while Expo provides the Android UI, camera/library access, authentication, and APK packaging. Kotlin can be added later as a native module if on-device TensorFlow Lite, MediaPipe, background video processing, or camera performance becomes necessary.
+Remain on React Native for the current product. Litestar performs the heavy inference, while Expo provides the Android UI, camera/library access, authentication, and APK packaging. Kotlin can be added later as a native module if on-device TensorFlow Lite, MediaPipe, background video processing, or camera performance becomes necessary.
 
 Development:
 
@@ -486,7 +505,7 @@ Current automated coverage verifies:
 
 ## Next Production Milestones
 
-1. Verify Supabase JWTs in FastAPI.
+1. Verify Supabase JWTs in Litestar.
 2. Move analysis jobs to Redis plus Celery/RQ workers.
 3. Replace placeholder audio activity with validated bark, whine, growl, howl, and pant classification.
 4. Add frame extraction, dog tracking, and pose keypoints.

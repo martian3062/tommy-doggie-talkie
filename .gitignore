@@ -18,6 +18,8 @@ build/
 # Runtime data
 backend/media/
 backend/*.db
+backend/models/
+training/**/outputs/
 backend/*.sqlite
 backend/*.sqlite3
 

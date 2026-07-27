@@ -40,7 +40,7 @@ MODEL_REGISTRY: dict[str, dict[str, str]] = {
     "breed_detection": {
         "baseline": "djhua0103/dog-breed-resnet50 / Stanford Dogs style classifiers",
         "advanced": "Fine-tuned breed classifier on local phone-video frames and mixed-breed labels",
-        "status": "implemented as optional image-classification adapter with fallback",
+        "status": "Kaggle GPU fine-tuned ResNet50 (training/) loaded locally, with HF and heuristic fallbacks",
     },
 }
 

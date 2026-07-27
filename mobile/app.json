@@ -24,7 +24,10 @@
     ],
     "extra": {
       "apiBaseUrl": "$EXPO_PUBLIC_API_BASE_URL",
-      "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL"
+      "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",
+      "eas": {
+        "projectId": "ed644f23-f9dd-431f-8746-c444614618ae"
+      }
     }
   }
 }

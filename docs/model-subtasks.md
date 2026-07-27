@@ -11,7 +11,7 @@
 | Video behavior | Rules from context/audio/pose | VideoMAE or SlowFast fine-tuning | MVP rules implemented |
 | Canine reasoning | Pawgaze | Evaluation taxonomy and prompts | Planned evaluation dataset |
 | Personal dog learning | Feedback counts + simple patterns | Per-dog classifier after 30-50 clips | Habit feedback implemented |
-| Breed intelligence | Breed profile priors + optional `djhua0103/dog-breed-resnet50` | Fine-tuned breed classifier on clear owner photos, phone videos, and mixed-breed labels | Breed APIs, mobile UI, and behavior-score adjustments implemented |
+| Breed intelligence | Breed profile priors + optional `djhua0103/dog-breed-resnet50` | Fine-tuned breed classifier on clear owner photos, phone videos, and mixed-breed labels | Breed APIs, mobile UI, behavior-score adjustments, and Kaggle GPU fine-tuning pipeline (`training/`) implemented; backend loads the trained TorchScript weights when present |
 
 ## Validation Rule
 

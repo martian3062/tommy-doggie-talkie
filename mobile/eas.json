@@ -8,12 +8,21 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://10.0.2.2:8000"
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.1.26:8000",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://qvokxgvqhegbpgrbcznq.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable__YXqcUSQvLfBCOil-GVsrQ_jS75RuUG",
+        "EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET": "dog-videos"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.1.26:8000",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://qvokxgvqhegbpgrbcznq.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable__YXqcUSQvLfBCOil-GVsrQ_jS75RuUG",
+        "EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET": "dog-videos"
       }
     }
   }

@@ -1,7 +1,11 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from sqlmodel import select
+from litestar import Router, get, patch, post
+from litestar.datastructures import UploadFile
+from litestar.di import NamedDependency
+from litestar.exceptions import HTTPException
+from litestar.params import FromPath, MultipartBody
+from litestar.status_codes import HTTP_200_OK
+from sqlmodel import Session, select
 
-from app.api.deps import OwnerDep, SessionDep
 from app.models import Dog, HabitSummary
 from app.schemas import (
     BreedDetectionRead,
@@ -19,49 +23,62 @@ from app.services.breed_intelligence import (
 )
 from app.services.storage import StorageService
 
-router = APIRouter(prefix="/dogs", tags=["dogs"])
-breed_router = APIRouter(prefix="/breeds", tags=["breeds"])
 
-
-@router.post("", response_model=DogRead)
-def create_dog(payload: DogCreate, session: SessionDep, owner_id: OwnerDep) -> Dog:
-    dog = Dog(owner_id=owner_id, **payload.model_dump())
-    session.add(dog)
-    session.commit()
-    session.refresh(dog)
-    return dog
-
-
-@router.get("", response_model=list[DogRead])
-def list_dogs(session: SessionDep, owner_id: OwnerDep) -> list[Dog]:
-    return list(session.exec(select(Dog).where(Dog.owner_id == owner_id)).all())
-
-
-@router.patch("/{dog_id}", response_model=DogRead)
-def update_dog(dog_id: str, payload: DogCreate, session: SessionDep, owner_id: OwnerDep) -> Dog:
+def _owned_dog_or_404(session: Session, dog_id: str, owner_id: str) -> Dog:
     dog = session.get(Dog, dog_id)
     if not dog or dog.owner_id != owner_id:
         raise HTTPException(status_code=404, detail="Dog not found")
-    for key, value in payload.model_dump().items():
+    return dog
+
+
+@post("/", status_code=HTTP_200_OK, sync_to_thread=True)
+def create_dog(
+    data: DogCreate,
+    session: NamedDependency[Session],
+    owner_id: NamedDependency[str],
+) -> DogRead:
+    dog = Dog(owner_id=owner_id, **data.model_dump())
+    session.add(dog)
+    session.commit()
+    session.refresh(dog)
+    return DogRead.model_validate(dog, from_attributes=True)
+
+
+@get("/", sync_to_thread=True)
+def list_dogs(
+    session: NamedDependency[Session],
+    owner_id: NamedDependency[str],
+) -> list[DogRead]:
+    dogs = session.exec(select(Dog).where(Dog.owner_id == owner_id)).all()
+    return [DogRead.model_validate(dog, from_attributes=True) for dog in dogs]
+
+
+@patch("/{dog_id:str}", sync_to_thread=True)
+def update_dog(
+    dog_id: FromPath[str],
+    data: DogCreate,
+    session: NamedDependency[Session],
+    owner_id: NamedDependency[str],
+) -> DogRead:
+    dog = _owned_dog_or_404(session, dog_id, owner_id)
+    for key, value in data.model_dump().items():
         setattr(dog, key, value)
     session.add(dog)
     session.commit()
     session.refresh(dog)
-    return dog
+    return DogRead.model_validate(dog, from_attributes=True)
 
 
-@router.post("/{dog_id}/breed-detect", response_model=BreedDetectionRead)
+@post("/{dog_id:str}/breed-detect", status_code=HTTP_200_OK)
 async def detect_breed(
-    dog_id: str,
-    session: SessionDep,
-    owner_id: OwnerDep,
-    file: UploadFile = File(...),
+    dog_id: FromPath[str],
+    session: NamedDependency[Session],
+    owner_id: NamedDependency[str],
+    data: MultipartBody[UploadFile],
 ) -> BreedDetectionRead:
-    dog = session.get(Dog, dog_id)
-    if not dog or dog.owner_id != owner_id:
-        raise HTTPException(status_code=404, detail="Dog not found")
-    local_path = await StorageService().save_upload(file, owner_id=owner_id, dog_id=dog_id)
-    predictions = detect_breed_from_media(local_path, original_filename=file.filename)
+    dog = _owned_dog_or_404(session, dog_id, owner_id)
+    local_path = await StorageService().save_upload(data, owner_id=owner_id, dog_id=dog_id)
+    predictions = detect_breed_from_media(local_path, original_filename=data.filename)
     profile = profile_for_predictions(predictions)
     if predictions:
         top = predictions[0]
@@ -82,28 +99,31 @@ async def detect_breed(
     )
 
 
-@router.get("/{dog_id}/habits", response_model=HabitSummaryRead)
-def get_habits(dog_id: str, session: SessionDep, owner_id: OwnerDep) -> HabitSummary:
+@get("/{dog_id:str}/habits", sync_to_thread=True)
+def get_habits(
+    dog_id: FromPath[str],
+    session: NamedDependency[Session],
+    owner_id: NamedDependency[str],
+) -> HabitSummaryRead:
     habit = session.exec(
         select(HabitSummary).where(HabitSummary.dog_id == dog_id, HabitSummary.owner_id == owner_id)
     ).first()
-    if habit:
-        return habit
-    dog = session.get(Dog, dog_id)
-    if not dog or dog.owner_id != owner_id:
-        raise HTTPException(status_code=404, detail="Dog not found")
-    habit = HabitSummary(dog_id=dog_id, owner_id=owner_id)
-    session.add(habit)
-    session.commit()
-    session.refresh(habit)
-    return habit
+    if not habit:
+        _owned_dog_or_404(session, dog_id, owner_id)
+        habit = HabitSummary(dog_id=dog_id, owner_id=owner_id)
+        session.add(habit)
+        session.commit()
+        session.refresh(habit)
+    return HabitSummaryRead.model_validate(habit, from_attributes=True)
 
 
-@router.post("/{dog_id}/personal-model/retrain", response_model=RetrainResponse)
-def retrain_personal_model(dog_id: str, session: SessionDep, owner_id: OwnerDep) -> RetrainResponse:
-    dog = session.get(Dog, dog_id)
-    if not dog or dog.owner_id != owner_id:
-        raise HTTPException(status_code=404, detail="Dog not found")
+@post("/{dog_id:str}/personal-model/retrain", status_code=HTTP_200_OK, sync_to_thread=True)
+def retrain_personal_model(
+    dog_id: FromPath[str],
+    session: NamedDependency[Session],
+    owner_id: NamedDependency[str],
+) -> RetrainResponse:
+    _owned_dog_or_404(session, dog_id, owner_id)
     return RetrainResponse(
         dog_id=dog_id,
         queued=False,
@@ -111,11 +131,31 @@ def retrain_personal_model(dog_id: str, session: SessionDep, owner_id: OwnerDep)
     )
 
 
-@breed_router.get("", response_model=list[BreedProfileRead])
-def list_breeds() -> list[dict]:
-    return list_breed_profiles()
+@get("/", sync_to_thread=False)
+def list_breeds() -> list[BreedProfileRead]:
+    return [BreedProfileRead.model_validate(profile) for profile in list_breed_profiles()]
 
 
-@breed_router.get("/{breed_slug}/behavior-profile", response_model=BreedProfileRead)
-def get_breed_behavior_profile(breed_slug: str) -> dict:
-    return get_breed_profile(breed_slug)
+@get("/{breed_slug:str}/behavior-profile", sync_to_thread=False)
+def get_breed_behavior_profile(breed_slug: FromPath[str]) -> BreedProfileRead:
+    return BreedProfileRead.model_validate(get_breed_profile(breed_slug))
+
+
+dogs_router = Router(
+    path="/api/v1/dogs",
+    tags=["dogs"],
+    route_handlers=[
+        create_dog,
+        list_dogs,
+        update_dog,
+        detect_breed,
+        get_habits,
+        retrain_personal_model,
+    ],
+)
+
+breeds_router = Router(
+    path="/api/v1/breeds",
+    tags=["breeds"],
+    route_handlers=[list_breeds, get_breed_behavior_profile],
+)

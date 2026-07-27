@@ -1,7 +1,7 @@
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import UploadFile
+from litestar.datastructures import UploadFile
 import httpx
 
 from app.core.config import get_settings

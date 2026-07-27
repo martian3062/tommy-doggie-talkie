@@ -1,6 +1,6 @@
 # Dog Translator Backend
 
-FastAPI backend for the Dog Translator app. It supports:
+Litestar backend for the Dog Translator app. It supports:
 
 - Supabase-first storage/database/auth integration once credentials are provided.
 - SQLite fallback for local development.
